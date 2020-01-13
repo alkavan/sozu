@@ -1017,7 +1017,7 @@ impl Listener {
     Some(self.token)
   }
 
-  pub fn add_http_front(&mut self, mut http_front: HttpFront) -> Result<(), String> {
+  pub fn add_http_front(&mut self, http_front: HttpFront) -> Result<(), String> {
     //FIXME: proper error reporting
     if self.fronts.add_http_front(http_front) {
       Ok(())
@@ -1026,7 +1026,7 @@ impl Listener {
     }
   }
 
-  pub fn remove_http_front(&mut self, mut http_front: HttpFront) -> Result<(), String> {
+  pub fn remove_http_front(&mut self, http_front: HttpFront) -> Result<(), String> {
     debug!("removing http_front {:?}", http_front);
     //FIXME: proper error reporting
     if self.fronts.remove_http_front(http_front) {
