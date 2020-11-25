@@ -52,6 +52,7 @@ hpack = "^0.3"
 tiny_http = "^0.8"
 quickcheck = "^1.0"
 ureq = "2.1"
+pretty_assertions = "0.7"
 
 [dependencies.nom]
 version = "^7.0.0-alpha1"

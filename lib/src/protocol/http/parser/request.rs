@@ -1,4 +1,3 @@
-
 use sozu_command::buffer::fixed::Buffer;
 use buffer_queue::BufferQueue;
 
@@ -53,8 +52,8 @@ impl RequestState {
 
   pub fn has_host(&self) -> bool {
     match *self {
-      RequestState::HasHost(_, _, _)            |
-      RequestState::HasHostAndLength(_, _, _, _)|
+      //RequestState::HasHost(_, _, _)            |
+      //RequestState::HasHostAndLength(_, _, _, _)|
       RequestState::Request(_, _, _)            |
       RequestState::RequestWithBody(_, _, _, _) |
       RequestState::RequestWithBodyChunks(_, _, _, _) => true,
@@ -84,8 +83,8 @@ impl RequestState {
 
   pub fn get_host(&self) -> Option<&str> {
     match *self {
-      RequestState::HasHost(_, _, ref host)             |
-      RequestState::HasHostAndLength(_, _, ref host, _) |
+      //RequestState::HasHost(_, _, ref host)             |
+      //RequestState::HasHostAndLength(_, _, ref host, _) |
       RequestState::Request(_, _, ref host)             |
       RequestState::RequestWithBody(_, _, ref host, _)  |
       RequestState::RequestWithBodyChunks(_, _, ref host, _) => Some(host.as_str()),
@@ -96,9 +95,9 @@ impl RequestState {
 
   pub fn get_uri(&self) -> Option<String> {
     match *self {
-      RequestState::HasRequestLine(ref rl, _)         |
-      RequestState::HasHost(ref rl, _, _)             |
-      RequestState::HasHostAndLength(ref rl, _, _, _) |
+      //RequestState::HasRequestLine(ref rl, _)         |
+      //RequestState::HasHost(ref rl, _, _)             |
+      //RequestState::HasHostAndLength(ref rl, _, _, _) |
       RequestState::Request(ref rl , _, _)            |
       RequestState::RequestWithBody(ref rl, _, _, _)  |
       RequestState::RequestWithBodyChunks(ref rl, _, _, _) => Some(rl.uri.clone()),
@@ -109,9 +108,9 @@ impl RequestState {
 
   pub fn get_request_line(&self) -> Option<&RRequestLine> {
     match *self {
-      RequestState::HasRequestLine(ref rl, _)         |
-      RequestState::HasHost(ref rl, _, _)             |
-      RequestState::HasHostAndLength(ref rl, _, _, _) |
+      //RequestState::HasRequestLine(ref rl, _)         |
+      //RequestState::HasHost(ref rl, _, _)             |
+      //RequestState::HasHostAndLength(ref rl, _, _, _) |
       RequestState::Request(ref rl, _, _)             |
       RequestState::RequestWithBody(ref rl, _, _, _)  |
       RequestState::RequestWithBodyChunks(ref rl, _, _, _) => Some(rl),
@@ -122,10 +121,10 @@ impl RequestState {
 
   pub fn get_keep_alive(&self) -> Option<&Connection> {
     match *self {
-      RequestState::HasRequestLine(_, ref conn)         |
-      RequestState::HasHost(_, ref conn, _)             |
-      RequestState::HasLength(_, ref conn, _)           |
-      RequestState::HasHostAndLength(_, ref conn, _, _) |
+      //RequestState::HasRequestLine(_, ref conn)         |
+      //RequestState::HasHost(_, ref conn, _)             |
+      //RequestState::HasLength(_, ref conn, _)           |
+      //RequestState::HasHostAndLength(_, ref conn, _, _) |
       RequestState::Request(_, ref conn, _)             |
       RequestState::RequestWithBody(_, ref conn, _, _)  |
       RequestState::RequestWithBodyChunks(_, ref conn, _, _) => Some(conn),

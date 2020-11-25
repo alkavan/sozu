@@ -15,47 +15,65 @@ pub type UpgradeProtocol = String;
 #[derive(Debug,Clone,PartialEq)]
 pub enum ResponseState {
   Initial,
-  Error(Option<RStatusLine>, Option<Connection>, Option<UpgradeProtocol>, Option<LengthInformation>, Option<Chunk>),
-  HasStatusLine(RStatusLine, Connection),
-  HasUpgrade(RStatusLine, Connection, UpgradeProtocol),
-  HasLength(RStatusLine, Connection, LengthInformation),
-  Response(RStatusLine, Connection),
-  ResponseUpgrade(RStatusLine, Connection, UpgradeProtocol),
-  ResponseWithBody(RStatusLine, Connection, usize),
-  ResponseWithBodyChunks(RStatusLine, Connection, Chunk),
+  Error{status: Option<RStatusLine>, connection: Option<Connection>,
+    upgrade: Option<UpgradeProtocol>, length: Option<LengthInformation>, chunk: Option<Chunk>},
+  HasStatusLine{status: RStatusLine, connection: Connection},
+  HasUpgrade{status: RStatusLine, connection: Connection, upgrade: UpgradeProtocol},
+  HasLength{status: RStatusLine, connection: Connection, length: LengthInformation},
+  Response{status: RStatusLine, connection: Connection},
+  ResponseUpgrade{status: RStatusLine, connection: Connection, upgrade: UpgradeProtocol},
+  ResponseWithBody{status: RStatusLine, connection: Connection, length: usize},
+  ResponseWithBodyChunks{status: RStatusLine, connection: Connection, chunk: Chunk},
   // the boolean indicates if the backend connection is closed
-  ResponseWithBodyCloseDelimited(RStatusLine, Connection, bool),
+  ResponseWithBodyCloseDelimited{status: RStatusLine, connection: Connection, back_closed: bool},
 }
 
 impl ResponseState {
   pub fn into_error(self) -> ResponseState {
     match self {
-      ResponseState::Initial => ResponseState::Error(None, None, None, None, None),
-      ResponseState::HasStatusLine(sl, conn) => ResponseState::Error(Some(sl), Some(conn), None, None, None),
-      ResponseState::HasLength(sl, conn, length) => ResponseState::Error(Some(sl), Some(conn), None, Some(length), None),
-      ResponseState::HasUpgrade(sl, conn, upgrade) => ResponseState::Error(Some(sl), Some(conn), Some(upgrade), None, None),
-      ResponseState::Response(sl, conn) => ResponseState::Error(Some(sl), Some(conn), None, None, None),
-      ResponseState::ResponseUpgrade(sl, conn, upgrade) => ResponseState::Error(Some(sl), Some(conn), Some(upgrade), None, None),
-      ResponseState::ResponseWithBody(sl, conn, len) => ResponseState::Error(Some(sl), Some(conn), None, Some(LengthInformation::Length(len)), None),
-      ResponseState::ResponseWithBodyChunks(sl, conn, chunk) => ResponseState::Error(Some(sl), Some(conn), None, None, Some(chunk)),
-      ResponseState::ResponseWithBodyCloseDelimited(sl, conn, _) => ResponseState::Error(Some(sl), Some(conn), None, None, None),
+      ResponseState::Initial => ResponseState::Error{status: None, connection: None,
+        upgrade: None, length: None, chunk: None},
+      ResponseState::HasStatusLine{status, connection} =>
+        ResponseState::Error{status: Some(status), connection:Some(connection),
+          upgrade: None, length: None, chunk: None},
+      ResponseState::HasLength{status, connection, length} =>
+        ResponseState::Error{status: Some(status), connection:Some(connection),
+          upgrade: None, length: Some(length), chunk: None},
+      ResponseState::HasUpgrade{status, connection, upgrade} =>
+        ResponseState::Error{status: Some(status), connection:Some(connection),
+          upgrade: Some(upgrade), length: None, chunk: None},
+      ResponseState::Response{status, connection} =>
+        ResponseState::Error{status: Some(status), connection:Some(connection),
+          upgrade: None, length: None, chunk: None},
+      ResponseState::ResponseUpgrade{status, connection, upgrade} =>
+        ResponseState::Error{status: Some(status), connection:Some(connection),
+          upgrade: Some(upgrade), length: None, chunk: None},
+      ResponseState::ResponseWithBody{status, connection, length} =>
+        ResponseState::Error{status: Some(status), connection:Some(connection),
+          upgrade: None, length: Some(LengthInformation::Length(length)), chunk: None},
+      ResponseState::ResponseWithBodyChunks{status, connection, chunk} =>
+        ResponseState::Error{status: Some(status), connection:Some(connection),
+          upgrade: None, length: None, chunk: Some(chunk)},
+      ResponseState::ResponseWithBodyCloseDelimited{status, connection, ..} =>
+        ResponseState::Error{status: Some(status), connection:Some(connection),
+          upgrade: None, length: None, chunk: None},
       err => err
     }
   }
 
   pub fn is_proxying(&self) -> bool {
     match *self {
-        ResponseState::Response(_, _)
-      | ResponseState::ResponseWithBody(_, _, _)
-      | ResponseState::ResponseWithBodyChunks(_, _, _)
-      | ResponseState::ResponseWithBodyCloseDelimited(_, _, _)
+        ResponseState::Response{..}
+      | ResponseState::ResponseWithBody{..}
+      | ResponseState::ResponseWithBodyChunks{..}
+      | ResponseState::ResponseWithBodyCloseDelimited{..}
         => true,
       _ => false
     }
   }
 
   pub fn is_back_error(&self) -> bool {
-    if let ResponseState::Error(_,_,_,_,_) = self {
+    if let ResponseState::Error{..} = self {
       true
     } else {
       false
@@ -63,63 +81,63 @@ impl ResponseState {
   }
 
   pub fn get_status_line(&self) -> Option<&RStatusLine> {
-    match *self {
-      ResponseState::HasStatusLine(ref sl, _)             |
-      ResponseState::HasLength(ref sl, _, _)              |
-      ResponseState::HasUpgrade(ref sl, _, _)             |
-      ResponseState::Response(ref sl, _)                  |
-      ResponseState::ResponseUpgrade(ref sl, _, _)        |
-      ResponseState::ResponseWithBody(ref sl, _, _)       |
-      ResponseState::ResponseWithBodyCloseDelimited(ref sl, _, _) |
-      ResponseState::ResponseWithBodyChunks(ref sl, _, _) => Some(sl),
-      ResponseState::Error(ref sl, _, _, _, _)            => sl.as_ref(),
-      _                                                   => None
+    match self {
+      ResponseState::HasStatusLine{status, ..}
+      | ResponseState::HasLength{status, ..}
+      | ResponseState::HasUpgrade{status, ..}
+      | ResponseState::Response{status, ..}
+      | ResponseState::ResponseUpgrade{status, ..}
+      | ResponseState::ResponseWithBody{status, ..}
+      | ResponseState::ResponseWithBodyCloseDelimited{status, ..}
+      | ResponseState::ResponseWithBodyChunks{status, ..}=> Some(status),
+      ResponseState::Error{status, ..} => status.as_ref(),
+      _ => None,
     }
   }
 
   pub fn get_keep_alive(&self) -> Option<Connection> {
-    match *self {
-      ResponseState::HasStatusLine(_, ref conn)             |
-      ResponseState::HasLength(_, ref conn, _)              |
-      ResponseState::HasUpgrade(_, ref conn, _)             |
-      ResponseState::Response(_, ref conn)                  |
-      ResponseState::ResponseUpgrade(_, ref conn, _)        |
-      ResponseState::ResponseWithBody(_, ref conn, _)       |
-      ResponseState::ResponseWithBodyCloseDelimited(_, ref conn, _) |
-      ResponseState::ResponseWithBodyChunks(_, ref conn, _) => Some(conn.clone()),
-      ResponseState::Error(_, ref conn, _, _, _)            => conn.clone(),
-      _                                                     => None
+    match self {
+      ResponseState::HasStatusLine{connection, ..}
+      | ResponseState::HasLength{connection, ..}
+      | ResponseState::HasUpgrade{connection, ..}
+      | ResponseState::Response{connection, ..}
+      | ResponseState::ResponseUpgrade{connection, ..}
+      | ResponseState::ResponseWithBody{connection, ..}
+      | ResponseState::ResponseWithBodyCloseDelimited{connection, ..}
+      | ResponseState::ResponseWithBodyChunks{connection, ..} => Some(connection.clone()),
+      ResponseState::Error{connection, ..} => connection.clone(),
+      _  => None,
     }
   }
 
   pub fn get_mut_connection(&mut self) -> Option<&mut Connection> {
-    match *self {
-      ResponseState::HasStatusLine(_, ref mut conn)             |
-      ResponseState::HasLength(_, ref mut conn, _)              |
-      ResponseState::HasUpgrade(_, ref mut conn, _)             |
-      ResponseState::Response(_, ref mut conn)                  |
-      ResponseState::ResponseUpgrade(_, ref mut conn, _)        |
-      ResponseState::ResponseWithBody(_, ref mut conn, _)       |
-      ResponseState::ResponseWithBodyCloseDelimited(_, ref mut conn, _) |
-      ResponseState::ResponseWithBodyChunks(_, ref mut conn, _) => Some(conn),
-      ResponseState::Error(_, ref mut conn, _, _, _)            => conn.as_mut(),
-      _                                                     => None
+    match self {
+      ResponseState::HasStatusLine{connection, ..}
+      | ResponseState::HasLength{connection, ..}
+      | ResponseState::HasUpgrade{connection, ..}
+      | ResponseState::Response{connection, ..}
+      | ResponseState::ResponseUpgrade{connection, ..}
+      | ResponseState::ResponseWithBody{connection, ..}
+      | ResponseState::ResponseWithBodyCloseDelimited{connection, ..}
+      | ResponseState::ResponseWithBodyChunks{connection, ..} => Some(connection),
+      ResponseState::Error{connection, ..} => connection.as_mut(),
+      _ => None
     }
   }
 
   pub fn should_copy(&self, position: usize) -> Option<usize> {
     match *self {
-      ResponseState::ResponseWithBody(_, _, l) => Some(position + l),
-      ResponseState::Response(_, _)            => Some(position),
-      _                                        => None
+      ResponseState::ResponseWithBody{length,..} => Some(position + length),
+      ResponseState::Response{..} => Some(position),
+      _ => None
     }
   }
 
   pub fn should_keep_alive(&self) -> bool {
     //FIXME: should not clone here
-    let sl      = self.get_status_line();
+    let sl = self.get_status_line();
     let version = sl.as_ref().map(|sl| sl.version);
-    let conn    = self.get_keep_alive();
+    let conn = self.get_keep_alive();
     match (version, conn.map(|c| c.keep_alive)) {
       (_, Some(Some(true)))   => true,
       (_, Some(Some(false)))  => false,
@@ -130,7 +148,7 @@ impl ResponseState {
   }
 
   pub fn should_chunk(&self) -> bool {
-    if let  ResponseState::ResponseWithBodyChunks(_, _, _) = *self {
+    if let  ResponseState::ResponseWithBodyChunks{..} = *self {
       true
     } else {
       false
@@ -142,7 +160,7 @@ pub fn default_response_result<O>(state: ResponseState, res: IResult<&[u8], O>) 
   match res {
     Err(Err::Error(_)) | Err(Err::Failure(_)) => (BufferMove::None, state.into_error()),
     Err(Err::Incomplete(_)) => (BufferMove::None, state),
-    _                      => unreachable!()
+    _ => unreachable!()
   }
 }
 
@@ -152,22 +170,22 @@ pub fn validate_response_header(mut state: ResponseState, header: &Header, is_he
       match state {
         // if the request has a HEAD method, we don't count the content length
         // FIXME: what happens if multiple content lengths appear?
-        ResponseState::HasStatusLine(sl, conn) => if is_head {
-          ResponseState::HasStatusLine(sl, conn)
+        ResponseState::HasStatusLine{status, connection} => if is_head {
+          ResponseState::HasStatusLine{status, connection}
         } else {
-          ResponseState::HasLength(sl, conn, LengthInformation::Length(sz))
+          ResponseState::HasLength{status, connection, length: LengthInformation::Length(sz)}
         },
-        s                                      => s.into_error(),
+        s => s.into_error(),
       }
     },
     HeaderValue::Encoding(TransferEncodingValue::Chunked) => {
       match state {
-        ResponseState::HasStatusLine(sl, conn) => if is_head {
-          ResponseState::HasStatusLine(sl, conn)
+        ResponseState::HasStatusLine{status, connection} => if is_head {
+          ResponseState::HasStatusLine{status, connection}
         } else {
-          ResponseState::HasLength(sl, conn, LengthInformation::Chunked)
+          ResponseState::HasLength{status, connection, length: LengthInformation::Chunked}
         },
-        s                                      => s.into_error(),
+        s => s.into_error(),
       }
     },
     // FIXME: for now, we don't remember if we cancel indications from a previous Connection Header
@@ -183,11 +201,12 @@ pub fn validate_response_header(mut state: ResponseState, header: &Header, is_he
           conn.has_upgrade = true;
         }
       }).is_some() {
-        if let ResponseState::HasUpgrade(rl, conn, proto) = state {
-          if conn.has_upgrade {
-            ResponseState::HasUpgrade(rl, conn, proto)
+        if let ResponseState::HasUpgrade{status, connection, upgrade} = state {
+          if connection.has_upgrade {
+            ResponseState::HasUpgrade{status, connection, upgrade}
           } else {
-            ResponseState::Error(Some(rl), Some(conn), Some(proto), None, None)
+            ResponseState::Error{status: Some(status), connection: Some(connection),
+              upgrade: Some(upgrade), length: None, chunk: None}
           }
         } else {
           state
@@ -201,11 +220,11 @@ pub fn validate_response_header(mut state: ResponseState, header: &Header, is_he
       trace!("parsed a protocol: {:?}", proto);
       trace!("state is {:?}", state);
       match state {
-        ResponseState::HasStatusLine(sl, mut conn) => {
-          conn.upgrade = Some(proto.clone());
-          ResponseState::HasUpgrade(sl, conn, proto)
+        ResponseState::HasStatusLine{status, mut connection} => {
+          connection.upgrade = Some(proto.clone());
+          ResponseState::HasUpgrade{status, connection, upgrade: proto}
         },
-        s                                       => s.into_error(),
+        s => s.into_error(),
       }
     }
 
@@ -231,33 +250,34 @@ pub fn parse_response(state: ResponseState, buf: &[u8], is_head: bool, sticky_na
     ResponseState::Initial => {
       match status_line(buf) {
         Ok((i, r))    => {
-          if let Some(rl) = RStatusLine::from_status_line(r) {
-            let conn = Connection::new();
+          if let Some(status) = RStatusLine::from_status_line(r) {
+            let connection = Connection::new();
             /*let conn = if rl.version == "11" {
               Connection::keep_alive()
             } else {
               Connection::close()
             };
             */
-            (BufferMove::Advance(buf.offset(i)), ResponseState::HasStatusLine(rl, conn))
+            (BufferMove::Advance(buf.offset(i)), ResponseState::HasStatusLine{status, connection})
           } else {
-            (BufferMove::None, ResponseState::Error(None, None, None, None, None))
+            (BufferMove::None, ResponseState::Error{status: None, connection: None,
+              upgrade: None, length: None, chunk: None})
           }
         },
         res => default_response_result(state, res)
       }
     },
-    ResponseState::HasStatusLine(sl, conn) => {
+    ResponseState::HasStatusLine{status, connection} => {
       match message_header(buf) {
         Ok((i, header)) => {
-          let mv = if header.should_delete(&conn, sticky_name) {
+          let mv = if header.should_delete(&connection, sticky_name) {
             BufferMove::Delete(buf.offset(i))
           } else {
             BufferMove::Advance(buf.offset(i))
           };
-          (mv, validate_response_header(ResponseState::HasStatusLine(sl, conn), &header, is_head))
+          (mv, validate_response_header(ResponseState::HasStatusLine{status, connection}, &header, is_head))
         },
-        Err(Err::Incomplete(_)) => (BufferMove::None, ResponseState::HasStatusLine(sl, conn)),
+        Err(Err::Incomplete(_)) => (BufferMove::None, ResponseState::HasStatusLine{status, connection}),
         Err(_)      => {
           match crlf(buf) {
             Ok((i, _)) => {
@@ -265,80 +285,81 @@ pub fn parse_response(state: ResponseState, buf: &[u8], is_head: bool, sticky_na
               // no content
               if is_head ||
                 // all 1xx responses
-                sl.status / 100  == 1 || sl.status == 204 || sl.status == 304 {
-                (BufferMove::Advance(buf.offset(i)), ResponseState::Response(sl, conn))
+                status.status / 100  == 1 || status.status == 204 || status.status == 304 {
+                (BufferMove::Advance(buf.offset(i)), ResponseState::Response{status, connection})
               } else {
                 // no length information, so we'll assume that the response ends when the connection is closed
-                (BufferMove::Advance(buf.offset(i)), ResponseState::ResponseWithBodyCloseDelimited(sl, conn, false))
+                (BufferMove::Advance(buf.offset(i)),
+                  ResponseState::ResponseWithBodyCloseDelimited{status, connection, back_closed: false})
               }
             },
             res => {
               error!("PARSER\tHasStatusLine could not parse header for input(app={:?}):\n{}\n", app_id, buf.to_hex(16));
-              default_response_result(ResponseState::HasStatusLine(sl, conn), res)
+              default_response_result(ResponseState::HasStatusLine{status, connection}, res)
             }
           }
         }
       }
     },
-    ResponseState::HasLength(sl, conn, length) => {
+    ResponseState::HasLength{status, connection, length} => {
       match message_header(buf) {
         Ok((i, header)) => {
-          let mv = if header.should_delete(&conn, sticky_name) {
+          let mv = if header.should_delete(&connection, sticky_name) {
             BufferMove::Delete(buf.offset(i))
           } else {
             BufferMove::Advance(buf.offset(i))
           };
-          (mv,  validate_response_header(ResponseState::HasLength(sl, conn, length), &header, is_head))
+          (mv, validate_response_header(ResponseState::HasLength{status, connection, length}, &header, is_head))
         },
-        Err(Err::Incomplete(_)) => (BufferMove::None, ResponseState::HasLength(sl, conn, length)),
+        Err(Err::Incomplete(_)) => (BufferMove::None, ResponseState::HasLength{status, connection, length}),
         Err(_)      => {
           match crlf(buf) {
             Ok((i, _)) => {
               debug!("PARSER\theaders parsed, stopping");
                 match length {
-                  LengthInformation::Chunked    => (BufferMove::Advance(buf.offset(i)), ResponseState::ResponseWithBodyChunks(sl, conn, Chunk::Initial)),
-                  LengthInformation::Length(sz) => (BufferMove::Advance(buf.offset(i)), ResponseState::ResponseWithBody(sl, conn, sz)),
+                  LengthInformation::Chunked => (BufferMove::Advance(buf.offset(i)), ResponseState::ResponseWithBodyChunks{status, connection, chunk: Chunk::Initial}),
+                  LengthInformation::Length(sz) => (BufferMove::Advance(buf.offset(i)), ResponseState::ResponseWithBody{status, connection, length: sz}),
                 }
             },
             res => {
               error!("PARSER\tHasLength could not parse header for input(app={:?}):\n{}\n", app_id, buf.to_hex(16));
-              default_response_result(ResponseState::HasLength(sl, conn, length), res)
+              default_response_result(ResponseState::HasLength{status, connection, length}, res)
             }
           }
         }
       }
     },
-    ResponseState::HasUpgrade(sl, conn, protocol) => {
+    ResponseState::HasUpgrade{status, connection, upgrade} => {
       match message_header(buf) {
         Ok((i, header)) => {
-          let mv = if header.should_delete(&conn, sticky_name) {
+          let mv = if header.should_delete(&connection, sticky_name) {
             BufferMove::Delete(buf.offset(i))
           } else {
             BufferMove::Advance(buf.offset(i))
           };
-          (mv, validate_response_header(ResponseState::HasUpgrade(sl, conn, protocol), &header, is_head))
+          (mv, validate_response_header(ResponseState::HasUpgrade{status, connection, upgrade}, &header, is_head))
         },
-        Err(Err::Incomplete(_)) => (BufferMove::None, ResponseState::HasUpgrade(sl, conn, protocol)),
+        Err(Err::Incomplete(_)) => (BufferMove::None, ResponseState::HasUpgrade{status, connection, upgrade}),
         Err(_)      => {
           match crlf(buf) {
             Ok((i, _)) => {
               debug!("PARSER\theaders parsed, stopping");
-              (BufferMove::Advance(buf.offset(i)), ResponseState::ResponseUpgrade(sl, conn, protocol))
+              (BufferMove::Advance(buf.offset(i)), ResponseState::ResponseUpgrade{status, connection, upgrade})
             },
             res => {
               error!("PARSER\tHasUpgrade could not parse header for input(app={:?}):\n{}\n", app_id, buf.to_hex(16));
-              default_response_result(ResponseState::HasUpgrade(sl, conn, protocol), res)
+              default_response_result(ResponseState::HasUpgrade{status, connection, upgrade}, res)
             }
           }
         }
       }
     },
-    ResponseState::ResponseWithBodyChunks(rl, conn, ch) => {
-      let (advance, chunk_state) = ch.parse(buf);
-      (advance, ResponseState::ResponseWithBodyChunks(rl, conn, chunk_state))
+    ResponseState::ResponseWithBodyChunks{status, connection, chunk} => {
+      let (advance, chunk) = chunk.parse(buf);
+      (advance, ResponseState::ResponseWithBodyChunks{status, connection, chunk})
     },
-    ResponseState::ResponseWithBodyCloseDelimited(rl, conn, b) => {
-      (BufferMove::Advance(buf.len()), ResponseState::ResponseWithBodyCloseDelimited(rl, conn, b))
+    ResponseState::ResponseWithBodyCloseDelimited{status, connection, back_closed} => {
+      (BufferMove::Advance(buf.len()), ResponseState::ResponseWithBodyCloseDelimited{status, connection, back_closed})
     },
     _ => {
       error!("PARSER\tunimplemented state: {:?}", state);
@@ -365,9 +386,9 @@ pub fn parse_response_until_stop(mut current_state: ResponseState, mut header_en
         // header_end is some if we already parsed the headers
         if header_end.is_none() {
           match current_state {
-            ResponseState::Response(_,_) |
-            ResponseState::ResponseUpgrade(_,_,_) |
-            ResponseState::ResponseWithBodyChunks(_,_,_) => {
+            ResponseState::Response{..}
+            | ResponseState::ResponseUpgrade{..}
+            | ResponseState::ResponseWithBodyChunks{..} => {
               buf.insert_output(Vec::from(added_res_header.as_bytes()));
               add_sticky_session_to_response(buf, sticky_name, sticky_session);
 
@@ -376,24 +397,24 @@ pub fn parse_response_until_stop(mut current_state: ResponseState, mut header_en
 
               buf.slice_output(sz);
             },
-            ResponseState::ResponseWithBody(_,_,content_length) => {
+            ResponseState::ResponseWithBody{length, ..} => {
               buf.insert_output(Vec::from(added_res_header.as_bytes()));
               add_sticky_session_to_response(buf, sticky_name, sticky_session);
 
               buf.consume_parsed_data(sz);
               header_end = Some(buf.start_parsing_position);
 
-              buf.slice_output(sz+content_length);
-              buf.consume_parsed_data(content_length);
+              buf.slice_output(sz+length);
+              buf.consume_parsed_data(length);
             },
-            ResponseState::ResponseWithBodyCloseDelimited(_,ref conn, _) => {
+            ResponseState::ResponseWithBodyCloseDelimited{ref connection, ..} => {
               buf.insert_output(Vec::from(added_res_header.as_bytes()));
               add_sticky_session_to_response(buf, sticky_name, sticky_session);
 
               // special case: some servers send responses with no body,
               // no content length, and Connection: close
               // since we deleted the Connection header, we'll add a new one
-              if conn.keep_alive == Some(false) {
+              if connection.keep_alive == Some(false) {
                 buf.insert_output(Vec::from(&b"Connection: close\r\n"[..]));
               }
 
@@ -421,9 +442,9 @@ pub fn parse_response_until_stop(mut current_state: ResponseState, mut header_en
         buf.consume_parsed_data(length);
         if header_end.is_none() {
           match current_state {
-            ResponseState::Response(_,_) |
-            ResponseState::ResponseUpgrade(_,_,_) |
-            ResponseState::ResponseWithBodyChunks(_,_,_) => {
+            ResponseState::Response{..}
+            | ResponseState::ResponseUpgrade{..}
+            | ResponseState::ResponseWithBodyChunks{..} => {
               //println!("FOUND HEADER END (delete):{}", buf.start_parsing_position);
               header_end = Some(buf.start_parsing_position);
               buf.insert_output(Vec::from(added_res_header.as_bytes()));
@@ -431,15 +452,15 @@ pub fn parse_response_until_stop(mut current_state: ResponseState, mut header_en
 
               buf.delete_output(length);
             },
-            ResponseState::ResponseWithBody(_,_,content_length) => {
+            ResponseState::ResponseWithBody{length, ..} => {
               header_end = Some(buf.start_parsing_position);
               buf.insert_output(Vec::from(added_res_header.as_bytes()));
               buf.delete_output(length);
 
               add_sticky_session_to_response(buf, sticky_name, sticky_session);
 
-              buf.slice_output(content_length);
-              buf.consume_parsed_data(content_length);
+              buf.slice_output(length);
+              buf.consume_parsed_data(length);
             },
             _ => {
               buf.delete_output(length);
@@ -453,14 +474,14 @@ pub fn parse_response_until_stop(mut current_state: ResponseState, mut header_en
     }
 
     match current_state {
-      ResponseState::Error(_,_,_,_,_) => {
+      ResponseState::Error{..} => {
         incr!("http1.parser.response.error");
         break;
       }
-      ResponseState::Response(_,_) | ResponseState::ResponseWithBody(_,_,_) |
-        ResponseState::ResponseUpgrade(_,_,_) |
-        ResponseState::ResponseWithBodyChunks(_,_,Chunk::Ended) |
-        ResponseState::ResponseWithBodyCloseDelimited(_,_,_) => break,
+      ResponseState::Response{..} | ResponseState::ResponseWithBody{..} |
+        ResponseState::ResponseUpgrade{..} |
+        ResponseState::ResponseWithBodyChunks{chunk: Chunk::Ended, ..} |
+        ResponseState::ResponseWithBodyCloseDelimited{..} => break,
       _ => ()
     }
     //println!("move: {:?}, new state: {:?}, input_queue {:?}, output_queue: {:?}", mv, current_state, buf.input_queue, buf.output_queue);

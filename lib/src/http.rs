@@ -29,7 +29,7 @@ use super::server::{Server,ProxyChannel,ListenToken,
   ListenSession, CONN_RETRIES, push_event};
 use super::socket::server_bind;
 use super::retry::RetryPolicy;
-use super::protocol::http::parser::{hostname_and_port, RequestState, Method};
+use super::protocol::http::parser::{hostname_and_port, request2::RequestState, Method};
 use router::Router;
 use util::UnwrapLog;
 use timer::TimeoutContainer;
@@ -1535,7 +1535,8 @@ mod tests {
       start(config, channel, 10, 16384);
     });
 
-    let cluster = Cluster { cluster_id: String::from("app_1"), sticky_session: false, https_redirect: true, proxy_protocol: None, load_balancing: LoadBalancingAlgorithms::default(), answer_503: None };
+  let cluster = Cluster { cluster_id: String::from("app_1"), sticky_session: false, https_redirect: true, proxy_protocol: None, load_balancing: LoadBalancingAlgorithms::default(), load_metric: None, answer_503: None };
+
     command.write_message(&ProxyRequest { id: String::from("ID_ABCD"), order: ProxyRequestData::AddCluster(cluster) });
     let front = HttpFrontend { route: Route::ClusterId(String::from("app_1")), address: "127.0.0.1:1041".parse().unwrap(), hostname: String::from("localhost"), path: PathRule::Prefix(String::from("/")), method: None, position: RulePosition::Tree };
     command.write_message(&ProxyRequest { id: String::from("ID_EFGH"), order: ProxyRequestData::AddHttpFrontend(front) });

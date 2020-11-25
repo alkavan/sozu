@@ -65,7 +65,7 @@ impl BufferQueue {
     }
   }
 
-  pub fn invariant(&self) {
+  fn invariant(&self) {
     debug_assert!(self.buffer_position <= self.parsed_position,
       "buffer_position {} should be smaller than parsed_position {}",
       self.buffer_position, self.parsed_position);
@@ -120,7 +120,7 @@ impl BufferQueue {
     self.input_queue.is_empty() && self.output_queue.is_empty() && self.buffer.empty()
   }
 
-  pub fn merge_input_slices(&self) -> usize {
+  fn merge_input_slices(&self) -> usize {
     let mut acc = 0usize;
     for el in self.input_queue.iter() {
       match el {
@@ -133,6 +133,7 @@ impl BufferQueue {
     acc
   }
 
+  // fixme: same as available_input_data()
   pub fn input_data_size(&self) -> usize {
     let mut acc = 0usize;
     for el in self.input_queue.iter() {
@@ -490,6 +491,8 @@ mod tests {
   fn size_test() {
     assert_size!(BufferQueue, 88);
     assert_size!(Buffer, 16);
+    //assert_size!(Vec<u8>, 16);
+    //assert_size!(OutputElement, 16);
   }
 
   #[test]

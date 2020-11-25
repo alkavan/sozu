@@ -32,7 +32,7 @@ use sozu_command::proxy::{Cluster,CertificateFingerprint,CertificateAndKey,
 use sozu_command::logging;
 use sozu_command::ready::Ready;
 
-use protocol::http::{parser::{RequestState, RRequestLine, hostname_and_port, Method},
+use protocol::http::{parser::{request2::RequestState, RRequestLine, hostname_and_port, Method},
   answers::HttpAnswers};
 use pool::Pool;
 use {ClusterId,Backend,SessionResult,ConnectionError,Protocol,Readiness,SessionMetrics,

@@ -1,6 +1,7 @@
 use std::rc::{Rc,Weak};
 use std::cell::RefCell;
 use std::net::{Shutdown,SocketAddr};
+use std::convert::TryFrom;
 use mio::*;
 use mio::net::*;
 use std::io::{ErrorKind, Read};
@@ -9,14 +10,14 @@ use rusty_ulid::Ulid;
 use rustls::{ServerSession,Session as ClientSession,ProtocolVersion,SupportedCipherSuite,CipherSuite};
 use sozu_command::proxy::ProxyEvent;
 
-use protocol::http::parser::RequestState;
+use protocol::http::parser::request2::RequestState;
 use pool::Pool;
 use {Backend,SessionResult,Protocol,Readiness,SessionMetrics, ProxySession,
   BackendConnectionStatus, CloseResult};
 use socket::FrontRustls;
 use protocol::{ProtocolResult,Http,Pipe};
 use protocol::rustls::TlsHandshake;
-use protocol::http::{DefaultAnswerStatus, answers::HttpAnswers};
+use protocol::http::{DefaultAnswerStatus, answers::HttpAnswers, buffer::HttpBuffer};
 use protocol::proxy_protocol::expect::ExpectProxyProtocol;
 use retry::RetryPolicy;
 use util::UnwrapLog;
@@ -200,8 +201,8 @@ impl Session {
       }
 
       let sz = front_buf.available_data();
-      let mut buf = BufferQueue::with_buffer(front_buf);
-      buf.sliced_input(sz);
+      let mut buf = HttpBuffer::with_buffer(front_buf);
+      //buf.sliced_input(sz);
 
       gauge_add!("protocol.tls.handshake", -1);
       gauge_add!("protocol.https", 1);

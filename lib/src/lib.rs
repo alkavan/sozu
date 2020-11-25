@@ -183,6 +183,8 @@ extern crate quickcheck;
 #[cfg(feature = "use-openssl")]
 extern crate openssl_sys;
 extern crate foreign_types_shared;
+#[cfg(test)]
+extern crate pretty_assertions;
 
 #[macro_use] pub mod util;
 #[macro_use] pub mod metrics;
