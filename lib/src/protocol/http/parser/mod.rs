@@ -11,7 +11,7 @@ use nom::{
   },
   bytes::{
     self,
-    streaming::{tag, take, take_while, take_while1},
+    streaming::{tag, take, take_while},
     complete::{take_while1 as take_while1_complete}
   },
   sequence::{preceded, terminated, tuple},
@@ -446,9 +446,11 @@ fn end_of_chunk_and_header(i: &[u8]) -> IResult<&[u8], usize> {
   preceded(crlf, chunk_header)(i)
 }
 
+/*
 fn trailer_line(i: &[u8]) -> IResult<&[u8], &[u8]> {
   terminated(take_while1(is_header_value_char), crlf)(i)
 }
+*/
 
 #[derive(PartialEq,Debug,Clone,Copy)]
 pub enum Chunk {
