@@ -610,16 +610,15 @@ pub fn metrics(mut channel: Channel<CommandRequest,CommandResponse>, json: bool)
                 }
 
                 let mut main_table = Table::new();
-                main_table.add_row(row![String::from("Main process")]);
-                main_table.add_row(row![String::from("key"), String::from("Count"), String::from("Gauge")]);
+                main_table.add_row(row![String::from("Main process metrics")]);
 
                 for (ref key, ref value) in data.main.iter() {
                   match value {
-                    FilteredData::Count(c) => {main_table.add_row(row![key.to_string(), c, String::new()]);},
-                    FilteredData::Gauge(c) => { main_table.add_row(row![key.to_string(), String::new(), c]);},
+                    FilteredData::Count(c) => {main_table.add_row(row![key.to_string(), c]);},
+                    FilteredData::Gauge(c) => { main_table.add_row(row![key.to_string(), c]);},
                     r => {
                       println!("unexpected metric: {:?}", r);
-                      main_table.add_row(row![key.to_string(), String::new(), String::new()]);
+                      main_table.add_row(row![key.to_string(), String::new()]);
                     }
                   }
                 }
@@ -647,8 +646,7 @@ pub fn metrics(mut channel: Channel<CommandRequest,CommandResponse>, json: bool)
                 let mut header = Vec::new();
                 header.push(cell!("key"));
                 for key in data.workers.keys() {
-                  header.push(cell!("Count"));
-                  header.push(cell!("Gauge"));
+                  header.push(cell!("Value"));
                   header.push(cell!("p50"));
                   header.push(cell!("p90"));
                   header.push(cell!("p99"));
@@ -684,7 +682,6 @@ pub fn metrics(mut channel: Channel<CommandRequest,CommandResponse>, json: bool)
                         row.push(cell!(""));
                         row.push(cell!(""));
                         row.push(cell!(""));
-                        row.push(cell!(""));
                       },
                       Some(FilteredData::Count(c)) => {
                         row.push(cell!(c));
@@ -695,10 +692,8 @@ pub fn metrics(mut channel: Channel<CommandRequest,CommandResponse>, json: bool)
                         row.push(cell!(""));
                         row.push(cell!(""));
                         row.push(cell!(""));
-                        row.push(cell!(""));
                       },
                       Some(FilteredData::Gauge(c)) => {
-                        row.push(cell!(""));
                         row.push(cell!(c));
                         row.push(cell!(""));
                         row.push(cell!(""));
@@ -710,7 +705,6 @@ pub fn metrics(mut channel: Channel<CommandRequest,CommandResponse>, json: bool)
                       },
                       Some(FilteredData::Percentiles(p)) => {
                         row.push(cell!(p.samples));
-                        row.push(cell!(""));
                         row.push(cell!(p.p_50));
                         row.push(cell!(p.p_90));
                         row.push(cell!(p.p_99));
@@ -721,7 +715,6 @@ pub fn metrics(mut channel: Channel<CommandRequest,CommandResponse>, json: bool)
                       },
                       r => {
                         println!("unexpected metric: {:?}", r);
-                        row.push(cell!(""));
                         row.push(cell!(""));
                         row.push(cell!(""));
                         row.push(cell!(""));
@@ -756,7 +749,6 @@ pub fn metrics(mut channel: Channel<CommandRequest,CommandResponse>, json: bool)
                   let mut row = vec![cell!(id)];
                   for key in data.workers.keys() {
                     row.push(cell!(key));
-                    row.push(cell!(""));
                     row.push(cell!(""));
                     row.push(cell!(""));
                     row.push(cell!(""));
@@ -799,7 +791,6 @@ pub fn metrics(mut channel: Channel<CommandRequest,CommandResponse>, json: bool)
                           row.push(cell!(""));
                           row.push(cell!(""));
                           row.push(cell!(""));
-                          row.push(cell!(""));
                         },
                         Some(FilteredData::Count(c)) => {
                           row.push(cell!(c));
@@ -810,10 +801,8 @@ pub fn metrics(mut channel: Channel<CommandRequest,CommandResponse>, json: bool)
                           row.push(cell!(""));
                           row.push(cell!(""));
                           row.push(cell!(""));
-                          row.push(cell!(""));
                         },
                         Some(FilteredData::Gauge(c)) => {
-                          row.push(cell!(""));
                           row.push(cell!(c));
                           row.push(cell!(""));
                           row.push(cell!(""));
@@ -825,7 +814,6 @@ pub fn metrics(mut channel: Channel<CommandRequest,CommandResponse>, json: bool)
                         }
                         Some(FilteredData::Percentiles(p)) => {
                           row.push(cell!(p.samples));
-                          row.push(cell!(""));
                           row.push(cell!(p.p_50));
                           row.push(cell!(p.p_90));
                           row.push(cell!(p.p_99));
@@ -836,7 +824,6 @@ pub fn metrics(mut channel: Channel<CommandRequest,CommandResponse>, json: bool)
                         },
                         r => {
                           println!("unexpected metric: {:?}", r);
-                          row.push(cell!(""));
                           row.push(cell!(""));
                           row.push(cell!(""));
                           row.push(cell!(""));
@@ -859,7 +846,6 @@ pub fn metrics(mut channel: Channel<CommandRequest,CommandResponse>, json: bool)
                     let mut row = vec![cell!(format!("{}: {}", id, backend))];
                     for key in data.workers.keys() {
                       row.push(cell!(key));
-                      row.push(cell!(""));
                       row.push(cell!(""));
                       row.push(cell!(""));
                       row.push(cell!(""));
@@ -899,7 +885,6 @@ pub fn metrics(mut channel: Channel<CommandRequest,CommandResponse>, json: bool)
                             row.push(cell!(""));
                             row.push(cell!(""));
                             row.push(cell!(""));
-                            row.push(cell!(""));
                           },
                           Some(FilteredData::Count(c)) => {
                             row.push(cell!(c));
@@ -910,10 +895,8 @@ pub fn metrics(mut channel: Channel<CommandRequest,CommandResponse>, json: bool)
                             row.push(cell!(""));
                             row.push(cell!(""));
                             row.push(cell!(""));
-                            row.push(cell!(""));
                           },
                           Some(FilteredData::Gauge(c)) => {
-                            row.push(cell!(""));
                             row.push(cell!(c));
                             row.push(cell!(""));
                             row.push(cell!(""));
@@ -925,7 +908,6 @@ pub fn metrics(mut channel: Channel<CommandRequest,CommandResponse>, json: bool)
                           }
                           Some(FilteredData::Percentiles(p)) => {
                             row.push(cell!(p.samples));
-                            row.push(cell!(""));
                             row.push(cell!(p.p_50));
                             row.push(cell!(p.p_90));
                             row.push(cell!(p.p_99));
@@ -936,7 +918,6 @@ pub fn metrics(mut channel: Channel<CommandRequest,CommandResponse>, json: bool)
                           },
                           r => {
                             println!("unexpected metric: {:?}", r);
-                            row.push(cell!(""));
                             row.push(cell!(""));
                             row.push(cell!(""));
                             row.push(cell!(""));
