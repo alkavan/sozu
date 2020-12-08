@@ -690,7 +690,7 @@ fn print_metrics(table_name: &str, data: &BTreeMap<String, BTreeMap<String, Filt
     // sort the metrics so they always appear in the same order
     let mut metrics: Vec<_> = metrics.drain().collect();
     metrics.sort();
-    println!("metrics list: {:?}", metrics);
+    //println!("metrics list: {:?}", metrics);
 
     if !metrics.is_empty() {
         let mut table = Table::new();
@@ -728,7 +728,7 @@ fn print_metrics(table_name: &str, data: &BTreeMap<String, BTreeMap<String, Filt
     // sort the metrics so they always appear in the same order
     let mut time_metrics: Vec<_> = time_metrics.drain().collect();
     time_metrics.sort();
-    println!("time metrics list: {:?}", time_metrics);
+    //println!("time metrics list: {:?}", time_metrics);
 
     if !time_metrics.is_empty() {
         let mut timing_table = Table::new();
@@ -1497,7 +1497,8 @@ pub fn query_certificate(mut channel: Channel<CommandRequest,CommandResponse>, j
 }
 
 pub fn query_metrics(mut channel: Channel<CommandRequest,CommandResponse>, json: bool,
-                     list: bool, names: Vec<String>, clusters: Vec<String>, mut backends: Vec<(String, String)>) {
+                     list: bool, refresh: Option<u32>,
+                     names: Vec<String>, clusters: Vec<String>, mut backends: Vec<(String, String)>) {
 
     let query = if list {
         QueryMetricsType::List
@@ -1514,91 +1515,101 @@ pub fn query_metrics(mut channel: Channel<CommandRequest,CommandResponse>, json:
 
     let command = CommandRequestData::Proxy(ProxyRequestData::Query(Query::Metrics(query)));
 
-    let id = generate_id();
-    channel.write_message(&CommandRequest::new(
-            id.clone(),
-            command,
-            None,
-            ));
+    loop {
+        let id = generate_id();
+        channel.write_message(&CommandRequest::new(
+                id.clone(),
+                command.clone(),
+                None,
+                ));
+        print!("{}", termion::cursor::Save);
 
-    match channel.read_message() {
-        None          => {
-            eprintln!("the proxy didn't answer");
-            exit(1);
-        },
-        Some(message) => {
-            println!("received messgae: {:?}", message);
-            if id != message.id {
-                eprintln!("received message with invalid id: {:?}", message);
+        match channel.read_message() {
+            None          => {
+                eprintln!("the proxy didn't answer");
                 exit(1);
-            }
-            match message.status {
-                CommandStatus::Processing => {
-                    // do nothing here
-                    // for other messages, we would loop over read_message
-                    // until an error or ok message was sent
-                },
-                CommandStatus::Error => {
-                    if json {
-                        print_json_response(&message.message);
-                    } else {
-                        eprintln!("could not query proxy state: {}", message.message);
-                    }
+            },
+            Some(message) => {
+                //println!("received message: {:?}", message);
+                if id != message.id {
+                    eprintln!("received message with invalid id: {:?}", message);
                     exit(1);
-                },
-                CommandStatus::Ok => {
-                    if let Some(CommandResponseData::Query(data)) = message.data {
+                }
+                match message.status {
+                    CommandStatus::Processing => {
+                        // do nothing here
+                        // for other messages, we would loop over read_message
+                        // until an error or ok message was sent
+                    },
+                    CommandStatus::Error => {
                         if json {
-                            print_json_response(&data);
-                            return;
+                            print_json_response(&message.message);
+                        } else {
+                            eprintln!("could not query proxy state: {}", message.message);
                         }
+                        exit(1);
+                    },
+                    CommandStatus::Ok => {
+                        if let Some(CommandResponseData::Query(data)) = message.data {
+                            if json {
+                                print_json_response(&data);
+                                return;
+                            }
 
-                        println!("got data: {:#?}", data);
-                        if list {
-                          let metrics: HashSet<_> = data.values().filter_map(|value| {
-                              match value {
-                                  QueryAnswer::Metrics(QueryAnswerMetrics::List(v)) => {
-                                      Some(v.iter())
-                                  },
-                                  _ => None,
-                              }
-                          }).flatten().map(|s| s.replace("\t", ".")).collect();
-                          let mut metrics: Vec<_> = metrics.iter().collect();
-                          metrics.sort();
-                          println!("available metrics: {:?}", metrics);
-                          return;
-                        }
-
-                        let data = data.iter().filter_map(|(key, value)| {
-                            match value {
-                                QueryAnswer::Metrics(QueryAnswerMetrics::Cluster(d)) => {
-                                    let mut metrics = BTreeMap::new();
-                                    for (cluster_id, cluster_metrics) in d.iter() {
-                                        for (metric_key, value) in cluster_metrics.iter() {
-                                            metrics.insert(format!("{}.{}", cluster_id, metric_key), value.clone());
-                                        }
+                            //println!("got data: {:#?}", data);
+                            if list {
+                                let metrics: HashSet<_> = data.values().filter_map(|value| {
+                                    match value {
+                                        QueryAnswer::Metrics(QueryAnswerMetrics::List(v)) => {
+                                            Some(v.iter())
+                                        },
+                                        _ => None,
                                     }
-                                    Some((key.clone(), metrics))
-                                },
-                                QueryAnswer::Metrics(QueryAnswerMetrics::Backend(d)) => {
-                                    let mut metrics = BTreeMap::new();
-                                    for (cluster_id, cluster_metrics) in d.iter() {
-                                        for (backend_id, backend_metrics) in cluster_metrics.iter() {
-                                            for (metric_key, value) in backend_metrics.iter() {
-                                                metrics.insert(format!("{}.{}.{}", cluster_id, backend_id, metric_key), value.clone());
+                                }).flatten().map(|s| s.replace("\t", ".")).collect();
+                                let mut metrics: Vec<_> = metrics.iter().collect();
+                                metrics.sort();
+                                println!("available metrics: {:?}", metrics);
+                                return;
+                            }
+
+                            let data = data.iter().filter_map(|(key, value)| {
+                                match value {
+                                    QueryAnswer::Metrics(QueryAnswerMetrics::Cluster(d)) => {
+                                        let mut metrics = BTreeMap::new();
+                                        for (cluster_id, cluster_metrics) in d.iter() {
+                                            for (metric_key, value) in cluster_metrics.iter() {
+                                                metrics.insert(format!("{}.{}", cluster_id, metric_key), value.clone());
                                             }
                                         }
-                                    }
-                                    Some((key.clone(), metrics))
-                                },
-                                _ => None,
-                            }
-                        }).collect::<BTreeMap<_,_>>();
-                        print_metrics("Result", &data);
+                                        Some((key.clone(), metrics))
+                                    },
+                                    QueryAnswer::Metrics(QueryAnswerMetrics::Backend(d)) => {
+                                        let mut metrics = BTreeMap::new();
+                                        for (cluster_id, cluster_metrics) in d.iter() {
+                                            for (backend_id, backend_metrics) in cluster_metrics.iter() {
+                                                for (metric_key, value) in backend_metrics.iter() {
+                                                    metrics.insert(format!("{}.{}.{}", cluster_id, backend_id, metric_key), value.clone());
+                                                }
+                                            }
+                                        }
+                                        Some((key.clone(), metrics))
+                                    },
+                                    _ => None,
+                                }
+                            }).collect::<BTreeMap<_,_>>();
+                            print_metrics("Result", &data);
+                        }
                     }
                 }
             }
         }
+
+        match refresh {
+            None => break,
+            Some(seconds) => std::thread::sleep(std::time::Duration::from_secs(seconds as u64)),
+        }
+
+        print!("{}{}", termion::cursor::Restore, termion::clear::BeforeCursor);
     }
 }
 
