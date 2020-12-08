@@ -141,7 +141,7 @@ pub fn ctl(matches: Sozu) {
       match cmd {
         QueryCmd::Applications{ id, domain } => query_application(channel, json, id, domain),
         QueryCmd::Certificates{ fingerprint, domain } => query_certificate(channel, json, fingerprint, domain),
-        QueryCmd::Metrics{ names, clusters, backends } => query_metrics(channel, json, names, clusters, backends),
+        QueryCmd::Metrics{ list, names, clusters, backends } => query_metrics(channel, json, list, names, clusters, backends),
       }
     },
     SubCmd::Config{ cmd: _ } => {}, // noop, handled at the beginning of the method
