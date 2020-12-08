@@ -8,7 +8,7 @@ use sozu_command::proxy::{Cluster, ProxyRequestData, Backend, HttpFrontend,
   RemoveCertificate, ReplaceCertificate, LoadBalancingParams, RemoveBackend,
   TcpListener, ListenerType, TlsVersion, QueryCertificateType,
   QueryAnswerCertificate, RemoveListener, ActivateListener, DeactivateListener,
-  LoadBalancingAlgorithms, PathRule, RulePosition, Route};
+  LoadBalancingAlgorithms, PathRule, RulePosition, Route, QueryMetricsType};
 
 use serde_json;
 use std::collections::{HashMap,HashSet,BTreeMap};
@@ -1495,6 +1495,77 @@ pub fn query_certificate(mut channel: Channel<CommandRequest,CommandResponse>, j
     }
   }
 }
+
+pub fn query_metrics(mut channel: Channel<CommandRequest,CommandResponse>, json: bool,
+                     names: Vec<String>, clusters: Vec<String>, mut backends: Vec<(String, String)>) {
+
+    let query = if !clusters.is_empty() && !backends.is_empty() {
+        eprintln!("Error: Either request a list of clusters or a list of backends");
+        exit(1);
+    } else {
+        if !clusters.is_empty(){
+            QueryMetricsType::Cluster { metrics: names, clusters }
+        } else {
+            QueryMetricsType::Backend { metrics: names, backends }
+        }
+    };
+
+    let command = CommandRequestData::Proxy(ProxyRequestData::Query(Query::Metrics(query)));
+
+    let id = generate_id();
+    channel.write_message(&CommandRequest::new(
+            id.clone(),
+            command,
+            None,
+            ));
+
+    match channel.read_message() {
+        None          => {
+            eprintln!("the proxy didn't answer");
+            exit(1);
+        },
+        Some(message) => {
+            println!("received messgae: {:?}", message);
+            if id != message.id {
+                eprintln!("received message with invalid id: {:?}", message);
+                exit(1);
+            }
+            match message.status {
+                CommandStatus::Processing => {
+                    // do nothing here
+                    // for other messages, we would loop over read_message
+                    // until an error or ok message was sent
+                },
+                CommandStatus::Error => {
+                    if json {
+                        print_json_response(&message.message);
+                    } else {
+                        eprintln!("could not query proxy state: {}", message.message);
+                    }
+                    exit(1);
+                },
+                CommandStatus::Ok => {
+                    if let Some(CommandResponseData::Query(data)) = message.data {
+                        if json {
+                            print_json_response(&data);
+                            return;
+                        }
+
+                        println!("got data: {:#?}", data);
+                        let data = data.iter().filter_map(|(key, value)| {
+                            match value {
+                                QueryAnswer::Metrics(d) => Some((key.clone(), d.clone())),
+                                _ => None,
+                            }
+                        }).collect::<BTreeMap<_,_>>();
+                        print_metrics("Result", &data);
+                    }
+                }
+            }
+        }
+    }
+}
+
 
 pub fn logging_filter(channel: Channel<CommandRequest,CommandResponse>, timeout: u64, filter: &str) {
   order_command(channel, timeout, ProxyRequestData::Logging(String::from(filter)));
