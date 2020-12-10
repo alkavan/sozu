@@ -1507,9 +1507,9 @@ pub fn query_metrics(mut channel: Channel<CommandRequest,CommandResponse>, json:
         exit(1);
     } else {
         if !clusters.is_empty(){
-            QueryMetricsType::Cluster { metrics: names, clusters }
+            QueryMetricsType::Cluster { metrics: names, clusters, date: None }
         } else {
-            QueryMetricsType::Backend { metrics: names, backends }
+            QueryMetricsType::Backend { metrics: names, backends, date: None }
         }
     };
 
