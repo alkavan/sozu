@@ -43,7 +43,7 @@ pub fn ctl(matches: Sozu) {
     SubCmd::Upgrade { worker: None } => upgrade_main(channel, &config),
     SubCmd::Upgrade { worker: Some(id) } => { upgrade_worker(channel, timeout, id); },
     SubCmd::Status{ json } => status(channel, json),
-    SubCmd::Metrics{ json } => metrics(channel, json),
+    SubCmd::Metrics{ cmd } => metrics(channel, cmd),
     SubCmd::Logging{ level } => logging_filter(channel, timeout, &level),
     SubCmd::State{ cmd } => {
       match cmd {
